@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DTR Field Survey</title>
+<style>
+  :root { --brand:#0b6efd; --err:#c62828; --ok:#2e7d32; --auto:#e3f2fd; }
+  * { box-sizing:border-box; font-family: system-ui, sans-serif; }
+  body { margin:0; background:#f4f6f9; padding:16px; }
+  .card { max-width:720px; margin:auto; background:#fff; border-radius:12px;
+          box-shadow:0 4px 16px rgba(0,0,0,.06); padding:20px; }
+  h1 { font-size:20px; margin:0 0 12px; color:var(--brand); }
+  label { display:block; font-weight:600; margin:12px 0 4px; font-size:14px; }
+  input, select, textarea { width:100%; padding:10px; border:1px solid #ccd;
+          border-radius:8px; font-size:14px; }
+  select:disabled { background:#eef4ff; color:#333; font-weight:600; cursor:not-allowed; opacity:1; }
+  input.autofilled, select.autofilled { background:var(--auto); border-color:var(--brand); }
+  input:read-only, input[readonly] { background:#f5f5f5; }
+  textarea { resize:vertical; min-height:70px; }
+  .req::after { content:" *"; color:var(--err); }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  .msg { padding:10px; border-radius:8px; margin-top:12px; font-size:14px; }
+  .err { background:#ffebee; color:var(--err); }
+  .ok  { background:#e8f5e9; color:var(--ok); }
+  .info { background:#e3f2fd; color:var(--brand); }
+  button { margin-top:18px; width:100%; padding:14px; border:0;
+           background:var(--brand); color:#fff; font-size:16px; border-radius:10px;
+           cursor:pointer; }
+  button:disabled { opacity:.6; cursor:not-allowed; }
+  .hint { font-size:12px; color:#666; margin-top:4px; }
+  .photo-preview { max-width:100%; border-radius:8px; margin-top:8px; display:none; }
+  .hidden { display:none; }
+  .pw-wrap { position:relative; }
+  .pw-toggle { position:absolute; right:10px; top:50%; transform:translateY(-50%);
+               background:none; border:0; padding:0; width:auto; margin:0;
+               color:var(--brand); font-size:13px; cursor:pointer; }
+  .secondary-btn { margin-top:8px; width:100%; padding:12px; border:2px solid var(--brand);
+                   background:#fff; color:var(--brand); font-size:15px; font-weight:600;
+                   border-radius:10px; cursor:pointer; }
+  .check-btn { margin-top:8px; padding:10px 16px; background:var(--brand); color:#fff;
+               border:0; border-radius:8px; font-size:14px; font-weight:600;
+               cursor:pointer; width:auto; }
+  .check-btn:disabled { opacity:.6; cursor:not-allowed; }
+  .reset-btn { margin-top:8px; padding:8px 12px; background:#fff; color:var(--err);
+               border:1px solid var(--err); border-radius:8px; font-size:13px;
+               cursor:pointer; width:auto; margin-left:8px; }
+  .success-box { padding:16px; border-radius:10px; background:#e8f5e9;
+                 border:2px solid var(--ok); margin-top:12px; text-align:center; }
+  .success-box .aesl-code { font-size:20px; font-weight:700; color:var(--brand);
+                            letter-spacing:1px; margin:8px 0; padding:8px 16px;
+                            background:#fff; border-radius:8px; display:inline-block;
+                            border:2px dashed var(--brand); word-break:break-all; }
+  .copy-btn { background:transparent; border:1px solid var(--brand); color:var(--brand);
+              padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer;
+              margin:6px 0 0 0; width:auto; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #ccc;
+             border-top-color:var(--brand); border-radius:50%;
+             animation:spin 1s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .photo-block { border:1px dashed #ccd; border-radius:8px; padding:12px; margin-top:6px; }
+  .photo-block-title { font-weight:600; color:var(--brand); margin-bottom:6px; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>DTR Field Survey</h1>
+  <div id="locStatus" class="msg err">📍 Requesting location permission…</div>
+  <button type="button" id="retryLocBtn" class="secondary-btn hidden">🔄 Enable Location & Retry</button>
+
+  <form id="surveyForm" novalidate>
+
+    <label class="req">Access Code</label>
+    <div class="pw-wrap">
+      <input type="password" name="AccessCode" id="accessCode"
+             maxlength="100" autocomplete="off" required
+             placeholder="Enter the access code provided by admin" />
+      <button type="button" class="pw-toggle" id="pwToggle">Show</button>
+    </div>
+    <div class="hint">Ask your supervisor if you don't have this code.</div>
+
+    <label class="req">Project</label>
+    <select name="Project" id="project" required disabled>
+      <option value="APSPDCL" selected>APSPDCL</option>
+    </select>
+    <div class="hint">Project is fixed as APEPDCL.</div>
+
+    <label class="req">Circle</label>
+    <select name="Circle" id="selCircle" required></select>
+
+    <label class="req">Division</label>
+    <select name="Division" id="selDivision" required disabled></select>
+    <div class="hint" id="divHint">Select a Circle first.</div>
+
+    <label class="req">Sub-Division</label>
+    <select name="SubDivision" id="selSubDivision" required disabled></select>
+    <div class="hint" id="subHint">Select a Division first.</div>
+
+    <label class="req">Section</label>
+    <input name="Section" maxlength="100" required />
+
+    <label class="req">Feeder Code</label>
+    <input name="FeederCode" id="feederCode" maxlength="100" required
+           autocomplete="off" placeholder="Enter feeder code" />
+    <div>
+      <button type="button" id="checkFeederBtn" class="check-btn">🔍 Check Feeder</button>
+      <button type="button" id="resetFeederBtn" class="reset-btn hidden">↻ Change Feeder</button>
+    </div>
+    <div class="hint" id="feederStatus">Click "Check Feeder" after entering the code.</div>
+
+    <label class="req">Feeder Name</label>
+    <input name="FeederName" id="feederName" maxlength="200" required />
+
+    <label class="req">Substation Code</label>
+    <input name="SubstationCode" id="substationCode" maxlength="100" required />
+
+    <label class="req">Name of Substation</label>
+    <input name="SubstationName" id="substationName" maxlength="200" required />
+
+    <label class="req">Is smart meter installed?</label>
+    <select name="IsSmartMeterInstalled" required>
+      <option value="">-- Select --</option><option>Yes</option><option>No</option>
+    </select>
+
+    <label class="req">Meter Serial No. (Smart / Old Meter)</label>
+    <input name="MeterSerialNo" maxlength="100" required />
+
+    <label class="req">DT Code</label>
+    <select id="dtrSelect" class="hidden"></select>
+    <input name="DTRCode" id="dtrCode" maxlength="100" required
+           autocomplete="off" placeholder="Enter DT Code" />
+    <div class="hint" id="dtrHint">Check Feeder first, or enter DT Code manually.</div>
+
+    <label class="req">DTR Name</label>
+    <input name="DTRName" id="dtrName" maxlength="200" required />
+
+    <label class="req">DTR Rating (KVA)</label>
+    <input type="number" name="DTRRatingKVA" id="dtrKva" min="0" max="10000000" step="1" required />
+
+    <label class="req">Is DTR Rating Changed?</label>
+    <select name="IsDTRRatingChanged" id="isRatingChanged" required>
+      <option value="">-- Select --</option><option>Yes</option><option>No</option>
+    </select>
+
+    <div id="newRatingWrap" class="hidden">
+      <label class="req">New DTR Rating (KVA)</label>
+      <input type="number" name="NewDTRRatingKVA" id="newDtrKva"
+             min="0" max="10000000" step="1" />
+      <div class="hint">Enter the actual current rating of the DTR.</div>
+    </div>
+
+    <label class="req">Enter New Seal Number</label>
+    <input name="NewSealNumber" id="newSealNumber" maxlength="100" required />
+
+    <label class="req">Is meter under communication?</label>
+    <select name="IsMeterUnderCommunication" id="commSel" required>
+      <option value="">-- Select --</option><option>Yes</option><option>No</option>
+    </select>
+
+    <div id="nonCommWrap" class="hidden">
+      <label class="req">Non-Communication reason</label>
+      <textarea name="NonCommunicationReason" maxlength="300"></textarea>
+      <div class="hint">Max 300 characters.</div>
+    </div>
+
+    <label class="req">Type of DTR</label>
+    <select name="TypeOfDTR" required>
+      <option value="">-- Select --</option>
+      <option>AGL</option><option>Dedicated</option><option>Non-AGL</option>
+    </select>
+
+    <label class="req">Name of JE</label>
+    <input name="NameOfJE" maxlength="100" required />
+
+    <!-- Photo 1: MSN Focused Meter -->
+    <div class="photo-block">
+      <div class="photo-block-title">📷 Photo 1 — MSN Focused Meter Photo <span style="color:var(--err)">*</span></div>
+      <input type="file" id="photoMSN" accept="image/*" capture="environment" required />
+      <img id="photoMSNPreview" class="photo-preview" alt="MSN Preview" />
+      <div class="hint">Take a clear close-up photo of the Meter Serial Number (MSN).</div>
+      <div id="photoMSNStatus" class="hint"></div>
+    </div>
+
+    <!-- Photo 2: DTR Full Structure -->
+    <div class="photo-block">
+      <div class="photo-block-title">📷 Photo 2 — DTR Full Structure View <span style="color:var(--err)">*</span></div>
+      <input type="file" id="photoDTR" accept="image/*" capture="environment" required />
+      <img id="photoDTRPreview" class="photo-preview" alt="DTR Preview" />
+      <div class="hint">Take a full-frame photo showing the entire DTR structure.</div>
+      <div id="photoDTRStatus" class="hint"></div>
+    </div>
+
+    <div id="submitMsg"></div>
+    <button type="submit" id="submitBtn" disabled>Submit</button>
+  </form>
+</div>
+
+<script>
+/* ============ CONFIG ============ */
+const POWER_AUTOMATE_URL = "https://default04c72f56184846a281678e5d36510c.bc.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/2c6a98d6356148c1bba7cebccc389f48/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=orChX4NoWpBk9WCzzsqMTR3Qf_OiU4nJtJDdPqLF3b0";
+const DTR_LOOKUP_URL     = "https://default04c72f56184846a281678e5d36510c.bc.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fcdeb7e156034ea18c5ac88237023970/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WK9MUljkNmYddfRYCekFbjACnADTmCpeiZchKbUuIG4";
+/* ================================ */
+
+/* ---------- Cascading hierarchy ---------- */
+const HIERARCHY = {
+  "ANNAMAYYA": {
+    "MADANAPALE": [
+      "MADANAPALLI OPERATION",
+      "MULAKALACHERVU",
+      "RURAL-MADANAPALLI"
+    ],
+    "PILERU": [
+      "PILER CCO",
+      "KALIKIRI"
+    ],
+    "PUNGANUR": [
+      "PUNGANUR CCO",
+      "SODUM"
+    ],
+    "RAJAMPET": [
+      "RAJAMPET",
+      "KODUR",
+      "CHITVEL"
+    ],
+    "RAYACHOTY": [
+      "RAYACHOTY",
+      "RAYACHOTY RURALS",
+      "LAKKIREDDY PALLI"
+    ]
+  },
+
+  "ANANTAPURAM": {
+    "ANANTHAPUR": [
+      "ANANTHAPUR",
+      "ANANTAPUR-II",
+      "ANANTHAPUR(E)",
+      "ANANTHAPUR(W)"
+    ],
+    "GOOTY": [
+      "GOOTY",
+      "GUNTAKAL",
+      "TADIPATRI",
+      "TADIPATRI-CCO"
+    ],
+    "KALYANDURG": [
+      "RAYADURG",
+      "URAVAKONDA",
+      "KALYANDURG HQ",
+      "KALYANDURG RURALS"
+    ]
+  },
+
+  "CHITTOOR": {
+    "CHITTOOR RURALS": [
+      "G.D.NELLORE",
+      "KARVETINAGAR CCO",
+      "NAGARI",
+      "PALAMANER"
+    ],
+    "CHITTOOR TOWN": [
+      "BANGARUPALYAM",
+      "CHITTOOR OPERATION",
+      "PAIPALLE CCO",
+      "REDDIGUNTA"
+    ],
+    "PUNGANUR": [
+      "PALAMANER",
+      "PUNGANUR CCO",
+      "SODUM"
+    ]
+  },
+
+  "KURNOOL": {
+    "ADONI": [
+      "ADONI",
+      "ALLUR",
+      "PATTIKONDA"
+    ],
+    "KURNOOL": [
+      "KURNOOL",
+      "KURNOOL OPERATION",
+      "KURNOOL-II"
+    ],
+    "YEMMIGANUR": [
+      "YEMMIGANUR",
+      "GUDUR-KNL",
+      "MANTRALAYAM"
+    ]
+  },
+
+  "NANDYAL": {
+    "ATMAKURU-NAN": [
+      "ATMAKURU",
+      "NANDIKOTKUR"
+    ],
+    "DHONE": [
+      "DHONE",
+      "BANGANAPALLI",
+      "BETHAMCHERLA"
+    ],
+    "NANDYAL": [
+      "NANDYAL",
+      "NANDYAL-CCO",
+      "ALLAGADDA",
+      "KOILKUNTLA"
+    ]
+  },
+
+  "SPSRNELLORE": {
+    "ATMAKURU_NLR": [
+      "ATMAKURU",
+      "KALIGIRI",
+      "UDAYAGIRI"
+    ],
+    "GUDUR": [
+      "GUDUR",
+      "KOTA",
+      "RAPUR"
+    ],
+    "KAVALI": [
+      "KAVALI",
+      "ALLUR",
+      "KALIGIRI"
+    ],
+    "KOVUR": [
+      "BUCHIREDDY PALEM",
+      "INDUKURPETA C AND O",
+      "KOVUR",
+      "N.R.PALEM"
+    ],
+    "NELLORE RURALS": [
+      "MUTHUKURU",
+      "NELLORE RURALS",
+      "PODALAKUR C AND O",
+      "RAPUR"
+    ],
+    "NELLORE TOWN": [
+      "ANDHRA KESARI NAGAR",
+      "RAJENDRA NAGAR",
+      "RAMMURTHY NAGAR"
+    ]
+  },
+
+  "SRISATHYASAI": {
+    "HINDUPUR": [
+      "HINDUPUR",
+      "HINDUPUR RURALS",
+      "MADAKASIRA",
+      "PENUKONDA"
+    ],
+    "KADIRI": [
+      "KADIRI TOWN",
+      "KADIRIEAST",
+      "KADIRIWEST(R)"
+    ],
+    "PUTTAPARTHY": [
+      "PUTTAPARTHY",
+      "DHARMAVARAM",
+      "C.K.PALLI"
+    ]
+  },
+
+  "TIRUPATI": {
+    "GUDUR": [
+      "GUDUR",
+      "KOTA"
+    ],
+    "NAIDUPETA": [
+      "NAIDUPETA",
+      "SULLURPETA",
+      "VENKATAGIRI C AND O"
+    ],
+    "PUTTUR": [
+      "PUTTUR OPERATION",
+      "NAGALAPURAM OPERATION"
+    ],
+    "TIRUPATI RURALS": [
+      "CHANDRAGIRI",
+      "CHINNAGOTTIGALLU",
+      "PAKALA",
+      "SRIKALAHASTI OPERATION",
+      "SRIKALAHASTI RURAL"
+    ],
+    "TIRUPATI TOWN": [
+      "CHITVEL",
+      "KODUR",
+      "RENIGUNTA",
+      "TIRUPATI CCO",
+      "TIRUPATI OPERATION1",
+      "TIRUPATI OPERATION2"
+    ]
+  },
+
+  "YSRKADAPA": {
+    "KADAPA": [
+      "KADAPA OCC1",
+      "KADAPA OCC2",
+      "KADAPA OPERATION 1",
+      "KADAPA OPERATION 2",
+      "VONTIMITTA"
+    ],
+    "MYDUKUR": [
+      "BADVEL",
+      "MYDUKUR",
+      "PORUMAMILLA OCC"
+    ],
+    "PRODDATUR": [
+      "JAMMALAMADUGU",
+      "PRODDATUR",
+      "PRODDATUR RURALS",
+      "YERRAGUNTLA"
+    ],
+    "PULIVENDULA": [
+      "PULIVENDULA",
+      "PULIVENDULA(RURALS)",
+      "VEMPALLI"
+    ],
+    "RAJAMPET": [
+      "RAJAMPET",
+      "RAYACHOTY"
+    ]
+  }
+};
+
+const selCircle    = document.getElementById('selCircle');
+const selDivision  = document.getElementById('selDivision');
+const selSubDiv    = document.getElementById('selSubDivision');
+const divHint      = document.getElementById('divHint');
+const subHint      = document.getElementById('subHint');
+
+function fillSelect(sel, items, ph) {
+  sel.innerHTML = `<option value="">${ph}</option>` + items.map(v=>`<option>${v}</option>`).join('');
+}
+fillSelect(selCircle, Object.keys(HIERARCHY).sort(), '-- Select Circle --');
+fillSelect(selDivision, [], '-- Select Division --');
+fillSelect(selSubDiv, [], '-- Select Sub-Division --');
+
+selCircle.addEventListener('change', () => {
+  const c = selCircle.value;
+  if (c && HIERARCHY[c]) {
+    const divs = Object.keys(HIERARCHY[c]).sort();
+    fillSelect(selDivision, divs, '-- Select Division --');
+    selDivision.disabled = false;
+    divHint.textContent = `${divs.length} division(s) available.`;
+  } else {
+    fillSelect(selDivision, [], '-- Select Division --');
+    selDivision.disabled = true;
+    divHint.textContent = 'Select a Circle first.';
+  }
+  fillSelect(selSubDiv, [], '-- Select Sub-Division --');
+  selSubDiv.disabled = true;
+  subHint.textContent = 'Select a Division first.';
+});
+selDivision.addEventListener('change', () => {
+  const c = selCircle.value, d = selDivision.value;
+  if (c && d && HIERARCHY[c] && HIERARCHY[c][d]) {
+    const subs = HIERARCHY[c][d].slice().sort();
+    fillSelect(selSubDiv, subs, '-- Select Sub-Division --');
+    selSubDiv.disabled = false;
+    subHint.textContent = `${subs.length} sub-division(s) available.`;
+  } else {
+    fillSelect(selSubDiv, [], '-- Select Sub-Division --');
+    selSubDiv.disabled = true;
+    subHint.textContent = 'Select a Division first.';
+  }
+});
+
+/* ---------- Access code ---------- */
+const codeInput = document.getElementById('accessCode');
+const pwToggle  = document.getElementById('pwToggle');
+pwToggle.addEventListener('click', () => {
+  const p = codeInput.type === 'password';
+  codeInput.type = p ? 'text' : 'password';
+  pwToggle.textContent = p ? 'Hide' : 'Show';
+});
+const savedCode = localStorage.getItem('dtrAccessCode');
+if (savedCode) codeInput.value = savedCode;
+codeInput.addEventListener('change', () => localStorage.setItem('dtrAccessCode', codeInput.value.trim()));
+
+/* ---------- Conditional non-comm ---------- */
+const commSel = document.getElementById('commSel');
+const wrap    = document.getElementById('nonCommWrap');
+const ncta    = wrap.querySelector('textarea');
+commSel.addEventListener('change', () => {
+  const show = commSel.value === 'No';
+  wrap.classList.toggle('hidden', !show);
+  ncta.required = show;
+  if (!show) ncta.value = '';
+});
+
+/* ---------- Is DTR Rating Changed: show/hide new rating input ---------- */
+const isRatingChanged = document.getElementById('isRatingChanged');
+const newRatingWrap   = document.getElementById('newRatingWrap');
+const newDtrKvaInp    = document.getElementById('newDtrKva');
+isRatingChanged.addEventListener('change', () => {
+  const yes = isRatingChanged.value === 'Yes';
+  newRatingWrap.classList.toggle('hidden', !yes);
+  newDtrKvaInp.required = yes;
+  if (!yes) newDtrKvaInp.value = '';
+});
+
+/* ============ FEEDER CHECK ============ */
+const feederCodeInp    = document.getElementById('feederCode');
+const feederNameInp    = document.getElementById('feederName');
+const substationCodeInp= document.getElementById('substationCode');
+const substationNameInp= document.getElementById('substationName');
+const dtrSelect        = document.getElementById('dtrSelect');
+const dtrCodeInp       = document.getElementById('dtrCode');
+const dtrNameInp       = document.getElementById('dtrName');
+const dtrKvaInp        = document.getElementById('dtrKva');
+const dtrHint          = document.getElementById('dtrHint');
+const feederStatus     = document.getElementById('feederStatus');
+const checkFeederBtn   = document.getElementById('checkFeederBtn');
+const resetFeederBtn   = document.getElementById('resetFeederBtn');
+
+let feederChecked = false;
+let feederFound   = false;
+let currentDtrList = [];
+let dataEntryMode = 'Manual';
+
+function setStatus(cls, html) {
+  feederStatus.className = 'msg ' + cls;
+  feederStatus.innerHTML = html;
+}
+function setField(input, value, autofilled) {
+  input.value = value;
+  if (autofilled) { input.classList.add('autofilled'); input.readOnly = true; }
+  else            { input.classList.remove('autofilled'); input.readOnly = false; }
+}
+
+function lockDependentFields() {
+  [feederNameInp, substationCodeInp, substationNameInp, dtrCodeInp, dtrNameInp, dtrKvaInp].forEach(i => {
+    i.value = ''; i.readOnly = true; i.classList.remove('autofilled');
+  });
+  dtrSelect.classList.add('hidden');
+  dtrSelect.required = false;
+  dtrCodeInp.required = true;
+  dtrHint.textContent = 'Click "Check Feeder" first.';
+}
+lockDependentFields();
+
+checkFeederBtn.addEventListener('click', async () => {
+  const code = feederCodeInp.value.trim();
+  if (!code) {
+    setStatus('err', '❌ Please enter a Feeder Code first.');
+    feederCodeInp.focus();
+    return;
+  }
+  checkFeederBtn.disabled = true;
+  setStatus('info', '<span class="spinner"></span> Checking feeder in master data…');
+
+  try {
+    const resp = await fetch(DTR_LOOKUP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feederCode: code })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    if (data.found) {
+      feederFound = true;
+      feederChecked = true;
+      dataEntryMode = 'Auto';
+
+      setField(feederNameInp,    data.feeder.fn, true);
+      setField(substationCodeInp,data.feeder.sc, true);
+      setField(substationNameInp,data.feeder.sn, true);
+
+      feederCodeInp.readOnly = true;
+      feederCodeInp.classList.add('autofilled');
+      checkFeederBtn.classList.add('hidden');
+      resetFeederBtn.classList.remove('hidden');
+
+      currentDtrList = Array.isArray(data.dtrs) ? data.dtrs : [];
+      if (currentDtrList.length > 0) {
+        populateDtrDropdown(currentDtrList);
+        setStatus('ok', `✅ Feeder found! Substation and Feeder Name auto-filled. ${currentDtrList.length} DTR(s) available.`);
+      } else {
+        switchToManualDtr();
+        setStatus('ok', `✅ Feeder found, but no DTRs mapped. Please enter DT details manually.`);
+      }
+    } else {
+      feederFound = false;
+      feederChecked = false;
+      dataEntryMode = 'Manual';
+      setStatus('err',
+        `❌ Feeder Code "<b>${code}</b>" not found. Please re-enter a correct Feeder Code, or if this is a new feeder, click <b>"Enter Manually"</b> below.`);
+      setTimeout(() => {
+        if (!document.getElementById('manualBtn')) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.id = 'manualBtn';
+          btn.className = 'check-btn';
+          btn.style.marginTop = '8px';
+          btn.textContent = '✏️ Enter All Details Manually';
+          btn.onclick = enableFullManualMode;
+          feederStatus.appendChild(document.createElement('br'));
+          feederStatus.appendChild(btn);
+        }
+      }, 100);
+      feederCodeInp.select();
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus('err', '⚠️ Lookup failed: ' + err.message + '. You can also click "Enter Manually" below.');
+    setTimeout(() => {
+      if (!document.getElementById('manualBtn')) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'manualBtn';
+        btn.className = 'check-btn';
+        btn.style.marginTop = '8px';
+        btn.textContent = '✏️ Enter All Details Manually';
+        btn.onclick = enableFullManualMode;
+        feederStatus.appendChild(document.createElement('br'));
+        feederStatus.appendChild(btn);
+      }
+    }, 100);
+  } finally {
+    checkFeederBtn.disabled = false;
+  }
+});
+
+function enableFullManualMode() {
+  feederChecked = true;
+  feederFound = false;
+  dataEntryMode = 'Manual';
+  [feederNameInp, substationCodeInp, substationNameInp].forEach(i => {
+    i.readOnly = false; i.classList.remove('autofilled');
+  });
+  feederCodeInp.readOnly = true;
+  feederCodeInp.classList.add('autofilled');
+  checkFeederBtn.classList.add('hidden');
+  resetFeederBtn.classList.remove('hidden');
+  switchToManualDtr();
+  setStatus('info', '✏️ Manual entry mode — please fill Feeder Name, Substation Code/Name, and DT details.');
+}
+
+resetFeederBtn.addEventListener('click', () => {
+  feederChecked = false;
+  feederFound = false;
+  dataEntryMode = 'Manual';
+  feederCodeInp.readOnly = false;
+  feederCodeInp.classList.remove('autofilled');
+  feederCodeInp.value = '';
+  feederCodeInp.focus();
+  checkFeederBtn.classList.remove('hidden');
+  resetFeederBtn.classList.add('hidden');
+  lockDependentFields();
+  setStatus('hint', 'Click "Check Feeder" after entering the code.');
+  feederStatus.className = 'hint';
+});
+
+function populateDtrDropdown(dtrs) {
+  dtrSelect.innerHTML =
+    '<option value="">-- Select DT Code --</option>' +
+    dtrs.map((d, i) => `<option value="${i}">${d.c} — ${d.n}</option>`).join('') +
+    '<option value="__manual__">✏️ Enter DT Code Manually</option>';
+  dtrSelect.classList.remove('hidden');
+  dtrSelect.required = true;
+  dtrCodeInp.classList.add('hidden');
+  dtrCodeInp.required = false;
+  dtrCodeInp.value = '';
+  [dtrNameInp, dtrKvaInp].forEach(i => {
+    i.value = ''; i.readOnly = true; i.classList.add('autofilled');
+  });
+  dtrHint.textContent = `${dtrs.length} DTR(s) available. Select one or choose Manual.`;
+}
+function switchToManualDtr() {
+  dtrSelect.classList.add('hidden');
+  dtrSelect.required = false;
+  dtrCodeInp.classList.remove('hidden');
+  dtrCodeInp.required = true;
+  [dtrCodeInp, dtrNameInp, dtrKvaInp].forEach(i => {
+    i.readOnly = false; i.classList.remove('autofilled'); i.value = '';
+  });
+  dtrHint.textContent = 'Manual DT entry: fill DT Code, Name, and KVA.';
+}
+
+dtrSelect.addEventListener('change', () => {
+  const v = dtrSelect.value;
+  if (v === '__manual__') {
+    dataEntryMode = 'Manual';
+    dtrSelect.classList.add('hidden');
+    dtrSelect.required = false;
+    dtrCodeInp.classList.remove('hidden');
+    dtrCodeInp.required = true;
+    [dtrCodeInp, dtrNameInp, dtrKvaInp].forEach(i => {
+      i.readOnly = false; i.classList.remove('autofilled'); i.value = '';
+    });
+    dtrHint.textContent = '✏️ Manual DT entry.';
+  } else if (v !== '') {
+    const d = currentDtrList[Number(v)];
+    if (d) {
+      dtrCodeInp.value = d.c;
+      setField(dtrNameInp, d.n, true);
+      setField(dtrKvaInp,  d.k, true);
+      dtrHint.textContent = `✅ DT selected: ${d.c}`;
+    }
+  }
+});
+
+/* ---------- Geolocation ---------- */
+let geo = null, autoRetryTimer = null;
+const locStatus = document.getElementById('locStatus');
+const submitBtn = document.getElementById('submitBtn');
+const retryLocBtn = document.getElementById('retryLocBtn');
+function setLocMsg(cls, t) { locStatus.className = 'msg ' + cls; locStatus.textContent = t; }
+function showRetryBtn(s) { retryLocBtn.classList.toggle('hidden', !s); }
+function onLocSuccess(p) {
+  geo = { lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6), acc:+p.coords.accuracy.toFixed(2) };
+  setLocMsg('ok', `📍 Location captured: ${geo.lat}, ${geo.lng} (±${geo.acc} m)`);
+  submitBtn.disabled = false; showRetryBtn(false);
+  if (autoRetryTimer) { clearInterval(autoRetryTimer); autoRetryTimer = null; }
+}
+function onLocError(err) {
+  geo = null; submitBtn.disabled = true; showRetryBtn(true);
+  let m=''; switch(err.code){
+    case 1: m='❌ Location permission denied. Tap 🔒 in address bar → Site settings → Location: Allow, then tap the button below.'; break;
+    case 2: m='❌ Cannot get location. Turn ON phone GPS, then tap the button below.'; break;
+    case 3: m='⏳ Timeout. Move to open area and tap the button.'; break;
+    default: m='❌ Location error.';
+  }
+  setLocMsg('err', m);
+  if (!autoRetryTimer) autoRetryTimer = setInterval(getLoc, 5000);
+}
+function getLoc(){
+  if(!navigator.geolocation){ setLocMsg('err','❌ Geolocation not supported.'); return; }
+  if(!geo) setLocMsg('err','📍 Requesting location…');
+  navigator.geolocation.getCurrentPosition(onLocSuccess, onLocError,
+    { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
+}
+retryLocBtn.addEventListener('click', getLoc);
+getLoc();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState==='visible' && !geo) getLoc(); });
+
+/* ---------- Photo processing (shared) ---------- */
+async function processImage(file) {
+  const MAX=1280, Q=0.75;
+  const d = await readAsDataURL(file); const img = await loadImage(d);
+  let { width, height } = img;
+  if (!width || !height) throw new Error('Invalid dimensions');
+  if (width > MAX || height > MAX) {
+    const r = Math.min(MAX/width, MAX/height);
+    width = Math.round(width*r); height = Math.round(height*r);
+  }
+  const cv = document.createElement('canvas');
+  cv.width = width; cv.height = height;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,width,height);
+  ctx.drawImage(img, 0, 0, width, height);
+  const blob = await new Promise((res, rej) =>
+    cv.toBlob(b => b ? res(b) : rej(new Error('toBlob failed')), 'image/jpeg', Q));
+  if (blob.size < 1000) throw new Error('Too small');
+  if (blob.size > 3145728) throw new Error('Too large: '+Math.round(blob.size/1024)+' KB');
+  const b64 = await blobToBase64(blob);
+  return { dataUrl:'data:image/jpeg;base64,'+b64, base64:b64, sizeKb:Math.round(blob.size/1024) };
+}
+function readAsDataURL(f){return new Promise((r,e)=>{const x=new FileReader();x.onload=()=>r(x.result);x.onerror=e;x.readAsDataURL(f);});}
+function loadImage(s){return new Promise((r,e)=>{const i=new Image();i.onload=()=>r(i);i.onerror=e;i.src=s;});}
+function blobToBase64(b){return new Promise((r,e)=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.onerror=e;x.readAsDataURL(b);});}
+
+/* ---------- Photo 1: MSN ---------- */
+const photoMSNInput   = document.getElementById('photoMSN');
+const photoMSNPreview = document.getElementById('photoMSNPreview');
+const photoMSNStatus  = document.getElementById('photoMSNStatus');
+let processedMSNBase64 = null;
+
+photoMSNInput.addEventListener('change', async () => {
+  const f = photoMSNInput.files[0]; if (!f) return;
+  photoMSNStatus.textContent = '⏳ Processing MSN photo…';
+  photoMSNStatus.style.color = '#666';
+  try {
+    const { dataUrl, base64, sizeKb } = await processImage(f);
+    photoMSNPreview.src = dataUrl; photoMSNPreview.style.display = 'block';
+    processedMSNBase64 = base64;
+    photoMSNStatus.textContent = `✅ MSN photo ready (${sizeKb} KB).`;
+    photoMSNStatus.style.color = 'var(--ok)';
+  } catch (err) {
+    processedMSNBase64 = null;
+    photoMSNStatus.textContent = '❌ MSN photo failed: ' + err.message;
+    photoMSNStatus.style.color = 'var(--err)';
+  }
+});
+
+/* ---------- Photo 2: DTR Structure ---------- */
+const photoDTRInput   = document.getElementById('photoDTR');
+const photoDTRPreview = document.getElementById('photoDTRPreview');
+const photoDTRStatus  = document.getElementById('photoDTRStatus');
+let processedDTRBase64 = null;
+
+photoDTRInput.addEventListener('change', async () => {
+  const f = photoDTRInput.files[0]; if (!f) return;
+  photoDTRStatus.textContent = '⏳ Processing DTR photo…';
+  photoDTRStatus.style.color = '#666';
+  try {
+    const { dataUrl, base64, sizeKb } = await processImage(f);
+    photoDTRPreview.src = dataUrl; photoDTRPreview.style.display = 'block';
+    processedDTRBase64 = base64;
+    photoDTRStatus.textContent = `✅ DTR photo ready (${sizeKb} KB).`;
+    photoDTRStatus.style.color = 'var(--ok)';
+  } catch (err) {
+    processedDTRBase64 = null;
+    photoDTRStatus.textContent = '❌ DTR photo failed: ' + err.message;
+    photoDTRStatus.style.color = 'var(--err)';
+  }
+});
+
+function copyAeslCode(c){
+  if(navigator.clipboard) navigator.clipboard.writeText(c).then(()=>{
+    const b=document.getElementById('copyAeslBtn');
+    if(b){const o=b.textContent;b.textContent='✅ Copied!';setTimeout(()=>b.textContent=o,1500);}
+  });
+}
+
+/* ---------- Submit ---------- */
+const form = document.getElementById('surveyForm');
+const msg  = document.getElementById('submitMsg');
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  msg.innerHTML = ''; msg.className = '';
+
+  if (!feederChecked) {
+    setStatus('err', '⚠️ Please click "Check Feeder" to verify the feeder code before submitting.');
+    feederStatus.scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  if (!geo) { alert('Location not captured yet.'); getLoc(); return; }
+  if (!processedMSNBase64) { alert('Please take the MSN Focused Meter Photo.'); photoMSNInput.scrollIntoView({behavior:'smooth', block:'center'}); return; }
+  if (!processedDTRBase64) { alert('Please take the DTR Full Structure View Photo.'); photoDTRInput.scrollIntoView({behavior:'smooth', block:'center'}); return; }
+
+  if (!dtrCodeInp.value && dtrSelect.value && dtrSelect.value !== '__manual__') {
+    const d = currentDtrList[Number(dtrSelect.value)];
+    if (d) dtrCodeInp.value = d.c;
+  }
+
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+
+  submitBtn.disabled = true; submitBtn.textContent = 'Submitting…';
+
+  try {
+    const fd = new FormData(form);
+    /* Disabled Project select is NOT included in FormData — inject manually */
+    const payload = Object.fromEntries(fd.entries());
+    payload.Project = 'APSPDCL';
+
+    ['DTRRatingKVA','NewDTRRatingKVA'].forEach(k => {
+      if (payload[k] !== undefined && payload[k] !== '') payload[k] = Number(payload[k]);
+    });
+    if (payload.NewDTRRatingKVA === '' || payload.NewDTRRatingKVA === undefined) delete payload.NewDTRRatingKVA;
+
+    payload.Latitude  = geo.lat;
+    payload.Longitude = geo.lng;
+    payload.LocationAccuracyMeters = geo.acc;
+    payload.CapturedAtUTC   = new Date().toISOString();
+    payload.SubmissionRefId = 'DTR-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+    payload.secret          = codeInput.value.trim();
+    delete payload.AccessCode;
+    payload.DTRCode       = dtrCodeInp.value.trim();
+    payload.DataEntryMode = dataEntryMode;
+    payload.MSNPhotoBase64 = processedMSNBase64;
+    payload.DTRPhotoBase64 = processedDTRBase64;
+
+    const resp = await fetch(POWER_AUTOMATE_URL, {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (resp.status === 401) throw new Error('Invalid access code.');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    const data = await resp.json();
+    const code = data.aeslDtCode || 'Pending';
+    const ref  = data.refId || payload.SubmissionRefId;
+    msg.innerHTML = `
+      <div class="success-box">
+        <div>✅ <b>Submitted successfully!</b></div>
+        <div style="margin-top:8px;font-size:13px;color:#555">Your AESL DT Code:</div>
+        <div class="aesl-code">${code}</div>
+        <div><button type="button" id="copyAeslBtn" class="copy-btn" onclick="copyAeslCode('${code}')">📋 Copy Code</button></div>
+        <div style="font-size:12px;color:#555;margin-top:8px">Reference: ${ref} · Mode: <b>${dataEntryMode}</b></div>
+      </div>`;
+
+    form.reset();
+    codeInput.value = localStorage.getItem('dtrAccessCode') || '';
+    /* Re-select APEPDCL after reset */
+    document.getElementById('project').value = 'APEPDCL';
+    photoMSNPreview.style.display = 'none'; photoDTRPreview.style.display = 'none';
+    photoMSNStatus.textContent = ''; photoDTRStatus.textContent = '';
+    processedMSNBase64 = null; processedDTRBase64 = null;
+    wrap.classList.add('hidden');
+    newRatingWrap.classList.add('hidden');
+    fillSelect(selDivision, [], '-- Select Division --');
+    fillSelect(selSubDiv, [], '-- Select Sub-Division --');
+    selDivision.disabled = true; selSubDiv.disabled = true;
+    divHint.textContent = 'Select a Circle first.';
+    subHint.textContent = 'Select a Division first.';
+    feederChecked = false; feederFound = false; dataEntryMode = 'Manual';
+    feederCodeInp.readOnly = false;
+    feederCodeInp.classList.remove('autofilled');
+    checkFeederBtn.classList.remove('hidden');
+    resetFeederBtn.classList.add('hidden');
+    lockDependentFields();
+    feederStatus.className = 'hint';
+    feederStatus.textContent = 'Click "Check Feeder" after entering the code.';
+    getLoc();
+    msg.scrollIntoView({behavior:'smooth', block:'center'});
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Submission failed: ' + err.message;
+  } finally {
+    submitBtn.textContent = 'Submit';
+    submitBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
